@@ -1,0 +1,45 @@
+[package]
+name = "flash_writer"
+version = "0.1.0"
+authors = ["Matvei <klimatt.gu@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+cfg-if = "0.1"
+rtt-target = { version = "0.2.2", features = ["cortex-m"] }
+stm32-device-signature = {version = "0.3.3"}
+
+[dependencies.stm32f0xx-hal]
+git = "https://github.com/stm32-rs/stm32f0xx-hal.git"
+branch = "master"
+features = ["stm32f051", "rt"]
+default-features = false
+optional = true
+
+[dependencies.stm32l4x6-hal]
+version = "0.1.0"
+optional = true
+
+
+[features]
+default = []
+
+bker_bit = []
+use_page_num = []
+use_banks = []
+start_bit = []
+ext_errors = []
+
+stm32f0xx = ["stm32-device-signature/stm32f0"]
+stm32l4x6 = ["stm32-device-signature/stm32l4", "bker_bit", "use_banks", "use_page_num", "start_bit", "ext_errors"]
+
+
+stm32f051 = ["stm32f0xx", "stm32f0xx-hal/stm32f051"]
+stm32l476 = ["stm32l4x6", "stm32l4x6-hal"]
+
+
+[profile.release]
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size on Flash
+lto = true # better optimizations
+opt-level = "z"
