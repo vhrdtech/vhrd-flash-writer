@@ -35,6 +35,7 @@ stm32l4x6 = ["stm32-device-signature/stm32l4", "bker_bit", "use_banks", "use_pag
 
 
 stm32f051 = ["stm32f0xx", "stm32f0xx-hal/stm32f051"]
+stm32f071 = ["stm32f0xx", "stm32f0xx-hal/stm32f071"]
 stm32l476 = ["stm32l4x6", "stm32l4x6-hal"]
 
 
