@@ -12,7 +12,6 @@ stm32-device-signature = {version = "0.3.3"}
 [dependencies.stm32f0xx-hal]
 git = "https://github.com/stm32-rs/stm32f0xx-hal.git"
 branch = "master"
-features = ["stm32f051", "rt"]
 default-features = false
 optional = true
 
@@ -34,8 +33,8 @@ stm32f0xx = ["stm32-device-signature/stm32f0"]
 stm32l4x6 = ["stm32-device-signature/stm32l4", "bker_bit", "use_banks", "use_page_num", "start_bit", "ext_errors"]
 
 
-stm32f051 = ["stm32f0xx", "stm32f0xx-hal/stm32f051"]
-stm32f071 = ["stm32f0xx", "stm32f0xx-hal/stm32f071"]
+stm32f051 = ["stm32f0xx", "stm32f0xx-hal/stm32f051", "stm32f0xx-hal/rt"]
+stm32f071 = ["stm32f0xx", "stm32f0xx-hal/stm32f071", "stm32f0xx-hal/rt"]
 stm32l476 = ["stm32l4x6", "stm32l4x6-hal"]
 
 
