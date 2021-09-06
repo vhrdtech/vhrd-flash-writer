@@ -202,11 +202,10 @@ fn write_sram(regs: &mut FLASH, address: u32, data: ProgramChunk) -> Result<(), 
 impl FlashWriter{
     pub fn new(mut range: Range<u32>, regs: &mut FLASH) -> Result<self::FlashWriter, FlashWriterError> {
         let mut flash_range = START_ADDR..=START_ADDR + flash_size_bytes();
+        #[cfg(feature = "pe_parallelism")]
+            regs.cr.modify(|_,w| unsafe{ w.psize().bits(2)} );
         match check_range(flash_range.borrow_mut(), range.borrow_mut()){
             true => {
-                #[cfg(feature = "pe_parallelism")]
-                    regs.cr.modify(|_,w| unsafe{ w.psize().bits(2)} );
-
                 Ok(
                     FlashWriter{
                         #[cfg(target_os = "use_banks")]
