@@ -200,10 +200,8 @@ fn write_sram(regs: &mut FLASH, address: u32, data: ProgramChunk) -> Result<(), 
 }
 ///TODO move flash_regs to each function insted of owning it in struct
 impl FlashWriter{
-    pub fn new(mut range: Range<u32>, regs: &mut FLASH) -> Result<self::FlashWriter, FlashWriterError> {
+    pub fn new(mut range: Range<u32>) -> Result<self::FlashWriter, FlashWriterError> {
         let mut flash_range = START_ADDR..=START_ADDR + flash_size_bytes();
-        #[cfg(feature = "pe_parallelism")]
-            regs.cr.modify(|_,w| unsafe{ w.psize().bits(2)} );
         match check_range(flash_range.borrow_mut(), range.borrow_mut()){
             true => {
                 Ok(
@@ -223,6 +221,11 @@ impl FlashWriter{
             }
             false => { Err(FlashWriterError::InvalidRange)}
         }
+    }
+
+    #[cfg(feature = "pe_parallelism")]
+    pub fn set_x32_parallelism(regs: &mut FLASH){
+        regs.cr.modify(|_,w| unsafe{ w.psize().bits(2)} );
     }
 
     pub fn erase(&mut self, regs: &mut FLASH) -> Result<(), FlashWriterError>{
