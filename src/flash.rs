@@ -1,5 +1,5 @@
 use core::ops::{Range, RangeInclusive};
-use core::borrow::BorrowMut;
+use core::borrow::{BorrowMut, Borrow};
 pub use stm32_device_signature;
 use cfg_if::cfg_if;
 use crate::mem_ext::MemExt;
@@ -30,8 +30,17 @@ pub enum FlashWriterError{
     MissErr,
     #[cfg(feature = "ext_errors")]
     FastErr,
+    #[cfg(feature = "lookup_table")]
+    AddressNotExistInSectorLookup,
+    #[cfg(feature = "pe_parallelism")]
+    PGSERR,
+    #[cfg(feature = "pe_parallelism")]
+    PGPERR,
+    #[cfg(feature = "pe_parallelism")]
+    PGAERR,
+    #[cfg(feature = "pe_parallelism")]
+    OPERR,
 }
-
 
 struct WriteBuff {
     data: [u8; PROGRAM_SIZE],
@@ -60,12 +69,29 @@ fn check_errors_ram(regs: &mut FLASH) -> Result<(), FlashWriterError> {
     let sr = regs.sr.read();
     cfg_if! {
         if #[cfg(feature = "ext_errors")] {
-            if sr.progerr().bit_is_set() { return Err(FlashWriterError::ProgErr); }
-            if sr.sizerr().bit_is_set() { return Err(FlashWriterError::SizeErr); }
-            if sr.pgaerr().bit_is_set() { return Err(FlashWriterError::PgaErr); }
-            if sr.pgserr().bit_is_set() { return Err(FlashWriterError::PgsErr); }
             if sr.wrperr().bit_is_set() { return Err(FlashWriterError::WrpErr); }
+
+
+            #[cfg(feature = "pe_parallelism")]
+            if sr.pgaerr().bit_is_set() { return Err(FlashWriterError::PGAERR); }
+            #[cfg(feature = "pe_parallelism")]
+            if sr.pgperr().bit_is_set() { return Err(FlashWriterError::PGPERR); }
+            #[cfg(feature = "pe_parallelism")]
+            if sr.pgserr().bit_is_set() { return Err(FlashWriterError::PGSERR); }
+            #[cfg(feature = "pe_parallelism")]
+            if sr.operr().bit_is_set() { return Err(FlashWriterError::OPERR); }
+
+            #[cfg(not(feature = "pe_parallelism"))]
+            if sr.progerr().bit_is_set() { return Err(FlashWriterError::ProgErr); }
+            #[cfg(not(feature = "pe_parallelism"))]
+            if sr.sizerr().bit_is_set() { return Err(FlashWriterError::SizeErr); }
+            #[cfg(not(feature = "pe_parallelism"))]
+            if sr.pgaerr().bit_is_set() { return Err(FlashWriterError::PgaErr); }
+            #[cfg(not(feature = "pe_parallelism"))]
+            if sr.pgserr().bit_is_set() { return Err(FlashWriterError::PgsErr); }
+            #[cfg(not(feature = "pe_parallelism"))]
             if sr.miserr().bit_is_set() { return Err(FlashWriterError::MissErr); }
+            #[cfg(not(feature = "pe_parallelism"))]
             if sr.fasterr().bit_is_set() { return Err(FlashWriterError::FastErr); }
         }
         else{
@@ -92,6 +118,30 @@ fn check_bsy_sram(regs: &mut FLASH) -> Result<(), FlashWriterError> {
     }
 }
 
+#[cfg(feature = "lookup_table")]
+#[link_section = ".data"]
+#[inline(never)]
+fn erase_sram(flash_writer: &mut FlashWriter, regs: &mut FLASH) -> Result<(), FlashWriterError> {
+    let first_sector = match get_sector_num_by_lookup_table(flash_writer.start_address.borrow_mut(), SECTOR_LOOKUP.borrow()){
+        None => { return Err(FlashWriterError::AddressNotExistInSectorLookup); }
+        Some(num) => { num }
+    };
+    let last_sector = match get_sector_num_by_lookup_table(flash_writer.end_address.borrow_mut(), SECTOR_LOOKUP.borrow()){
+        None => { return Err(FlashWriterError::AddressNotExistInSectorLookup); }
+        Some(num) => { num }
+    };
+    for sector in first_sector..=last_sector{
+        regs.cr.modify(|_,w| unsafe { w.ser().set_bit().snb().bits(sector as u8)} );
+        regs.cr.modify(|_,w| w.strt().set_bit());
+        match check_bsy_sram(regs) {
+            Err(e) => { return Err(e); }
+            Ok(_) => { continue; }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "lookup_table"))]
 #[link_section = ".data"]
 #[inline(never)]
 fn erase_sram(flash_writer: &mut FlashWriter, regs: &mut FLASH) -> Result<(), FlashWriterError> {
@@ -150,12 +200,13 @@ fn write_sram(regs: &mut FLASH, address: u32, data: ProgramChunk) -> Result<(), 
 }
 ///TODO move flash_regs to each function insted of owning it in struct
 impl FlashWriter{
-    pub fn new(mut range: Range<u32>) -> Result<self::FlashWriter, FlashWriterError> {
+    pub fn new(mut range: Range<u32>, regs: &mut FLASH) -> Result<self::FlashWriter, FlashWriterError> {
         let mut flash_range = START_ADDR..=START_ADDR + flash_size_bytes();
         match check_range(flash_range.borrow_mut(), range.borrow_mut()){
             true => {
-                //regs.cr.modify(|_,w|w.eopie().set_bit());
-                //unsafe{ regs.sr.modify(|_,w|w.bits(0x0000_0000)); };
+                #[cfg(feature = "pe_parallelism")]
+                    regs.cr.modify(|_,w| unsafe{ w.psize().bits(2)} );
+
                 Ok(
                     FlashWriter{
                         #[cfg(target_os = "use_banks")]
@@ -174,6 +225,7 @@ impl FlashWriter{
             false => { Err(FlashWriterError::InvalidRange)}
         }
     }
+
     pub fn erase(&mut self, regs: &mut FLASH) -> Result<(), FlashWriterError>{
         match self.unlock(regs){
             Err(e) => { return Err(e); }
@@ -327,6 +379,19 @@ pub fn flash_size_bytes() -> u32{
     (stm32_device_signature::flash_size_kb() as u32).kb()
 }
 
+#[cfg(feature = "lookup_table")]
+#[link_section = ".data"]
+#[inline(never)]
+fn get_sector_num_by_lookup_table(address: &u32, table: &[RangeInclusive<u32>]) -> Option<usize>{
+    for idx in 0usize..table.len(){
+        match table[idx].contains(address){
+            true => { return Some(idx); }
+            false => { continue; }
+        }
+    }
+    None
+}
+
 cfg_if!{
  if #[cfg(feature = "stm32f0xx")]{
         type ProgramChunk = u16;
@@ -334,5 +399,26 @@ cfg_if!{
         const PAGE_SIZE: usize = 1024;
         const PROGRAM_SIZE: usize = core::mem::size_of::<ProgramChunk>();
         use stm32f0xx_hal::stm32::FLASH;
+    }
+    else if #[cfg(feature = "stm32f4xx")] {
+        type ProgramChunk = u32;
+        const START_ADDR: u32 = 0x0800_0000;
+        #[cfg(feature = "stm32f405")]
+        const SECTOR_LOOKUP: [RangeInclusive<u32>; 12] = [
+            0x0800_0000..=0x0800_3FFF,// 16Kb
+            0x0800_4000..=0x0800_7FFF,// 16Kb
+            0x0800_8000..=0x0800_BFFF,// 16Kb
+            0x0800_C000..=0x0800_FFFF,// 16Kb
+            0x0801_0000..=0x0801_FFFF,// 64Kb
+            0x0802_0000..=0x0803_FFFF,// 128Kb
+            0x0804_0000..=0x0805_FFFF,// 128Kb
+            0x0806_0000..=0x0807_FFFF,// 128Kb
+            0x0808_0000..=0x0809_FFFF,// 128Kb
+            0x080A_0000..=0x080B_FFFF,// 128Kb
+            0x080C_0000..=0x080D_FFFF,// 128Kb
+            0x080E_0000..=0x080F_FFFF,// 128Kb
+        ];
+        const PROGRAM_SIZE: usize = core::mem::size_of::<ProgramChunk>();
+        use stm32f4xx_hal::stm32::FLASH;
     }
 }
