@@ -188,6 +188,9 @@ fn erase_sram(flash_writer: &mut FlashWriter, regs: &mut FLASH) -> Result<(), Fl
 fn write_sram(regs: &mut FLASH, address: u32, data: ProgramChunk) -> Result<(), FlashWriterError> {
     let w_a = address as *mut ProgramChunk;
     regs.cr.modify(|_, w| w.pg().set_bit());
+    #[cfg(feature = "pe_parallelism")]
+    regs.cr.modify(|_, w| unsafe{ w.psize().bits(2)} );
+
     unsafe { core::ptr::write_volatile(w_a, data) };
     match check_bsy_sram(regs) {
         Err(e) => { return Err(e); }
@@ -221,11 +224,6 @@ impl FlashWriter{
             }
             false => { Err(FlashWriterError::InvalidRange)}
         }
-    }
-
-    #[cfg(feature = "pe_parallelism")]
-    pub fn set_x32_parallelism(regs: &mut FLASH){
-        regs.cr.modify(|_,w| unsafe{ w.psize().bits(2)} );
     }
 
     pub fn erase(&mut self, regs: &mut FLASH) -> Result<(), FlashWriterError>{
