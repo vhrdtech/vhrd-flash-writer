@@ -126,7 +126,7 @@ fn erase_sram(flash_writer: &mut FlashWriter, regs: &mut FLASH) -> Result<(), Fl
         None => { return Err(FlashWriterError::AddressNotExistInSectorLookup); }
         Some(num) => { num }
     };
-    let last_sector = match get_sector_num_by_lookup_table(flash_writer.end_address.borrow_mut(), SECTOR_LOOKUP.borrow()){
+    let last_sector = match get_sector_num_by_lookup_table((flash_writer.end_address - 1u32).borrow_mut(), SECTOR_LOOKUP.borrow()){
         None => { return Err(FlashWriterError::AddressNotExistInSectorLookup); }
         Some(num) => { num }
     };
