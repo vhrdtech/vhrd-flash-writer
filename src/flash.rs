@@ -48,7 +48,7 @@ struct WriteBuff {
 }
 
 pub struct FlashWriter {
-    #[cfg(target_os = "use_banks")]
+    #[cfg(feature = "use_banks")]
     bank_change_on_page_num: u32,
 
     start_address: u32,
@@ -151,6 +151,7 @@ fn erase_sram(flash_writer: &mut FlashWriter, regs: &mut FLASH) -> Result<(), Fl
             if #[cfg(feature = "use_page_num")] {
                 let mut page_number = ((addr - START_ADDR) / PAGE_SIZE as u32);
                 if page_number > flash_writer.bank_change_on_page_num {
+                    #[cfg(feature = "bker_bit")]
                     regs.cr.modify(|_,w|w.bker().set_bit());
                     page_number = (page_number - flash_writer.bank_change_on_page_num + 1u32) ;
                 }
@@ -159,6 +160,7 @@ fn erase_sram(flash_writer: &mut FlashWriter, regs: &mut FLASH) -> Result<(), Fl
                 }
 
                 regs.cr.modify(|_, w| unsafe{ w.pnb().bits(page_number as u8) });
+                #[cfg(feature = "start_bit")]
                 regs.cr.modify(|_, w| w.start().set_bit());
             }
             else {
@@ -209,7 +211,7 @@ impl FlashWriter{
             true => {
                 Ok(
                     FlashWriter{
-                        #[cfg(target_os = "use_banks")]
+                        #[cfg(feature = "use_banks")]
                         bank_change_on_page_num: (stm32_device_signature::flash_size_kb() as u32 / (PAGE_SIZE * 2 / 1024 ) as u32) - 1u32,
 
                         start_address: range.start,
@@ -420,5 +422,12 @@ cfg_if!{
         ];
         const PROGRAM_SIZE: usize = core::mem::size_of::<ProgramChunk>();
         use stm32f4xx_hal::stm32::FLASH;
+    }
+    else if #[cfg(feature = "stm32l4xx")]{
+        type ProgramChunk = u64;
+        const START_ADDR: u32 = 0x0800_0000;
+        const PAGE_SIZE: usize = 2048;
+        const PROGRAM_SIZE: usize = core::mem::size_of::<ProgramChunk>();
+        use stm32l4xx_hal::stm32::FLASH;
     }
 }

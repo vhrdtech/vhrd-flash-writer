@@ -15,12 +15,14 @@ branch = "master"
 default-features = false
 optional = true
 
-[dependencies.stm32l4x6-hal]
-version = "0.1.0"
+[dependencies.stm32l4xx-hal]
+version = "0.6.0"
+default-features = false
 optional = true
 
 [dependencies.stm32f4xx-hal]
 version = "0.9.0"
+default-features = false
 optional = true
 
 
@@ -36,12 +38,12 @@ lookup_table = []
 pe_parallelism = []
 
 stm32f0xx = ["stm32-device-signature/stm32f0"]
-stm32l4x6 = ["stm32-device-signature/stm32l4", "bker_bit", "use_banks", "use_page_num", "start_bit", "ext_errors"]
+stm32l4xx = ["stm32-device-signature/stm32l4", "bker_bit", "use_banks", "use_page_num", "start_bit", "ext_errors"]
 stm32f4xx = ["stm32-device-signature/stm32f4", "lookup_table", "pe_parallelism", "ext_errors"]
 
 stm32f051 = ["stm32f0xx", "stm32f0xx-hal/stm32f051", "stm32f0xx-hal/rt"]
 stm32f072 = ["stm32f0xx", "stm32f0xx-hal/stm32f072", "stm32f0xx-hal/rt"]
-stm32l476 = ["stm32l4x6", "stm32l4x6-hal"]
+stm32l476 = ["stm32l4xx", "stm32l4xx-hal/stm32l4x6", "stm32l4xx-hal/rt"]
 stm32f405 = ["stm32f4xx", "stm32f4xx-hal/stm32f405", "stm32f4xx-hal/rt"]
 
 [profile.release]
